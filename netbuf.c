@@ -47,11 +47,36 @@ static void _netbuf_free(struct pbuf *p)
 	uk_netbuf_free_single(nb);
 }
 
+static void lwip_init_netbuf_pbuf(struct uk_netbuf *b)
+{
+	struct _netbuf_pbuf *np = uk_netbuf_get_priv(b);
+
+	memset(np, 0, sizeof(*np));
+	np->pbuf_custom.pbuf.type_internal   = PBUF_ROM;
+	np->pbuf_custom.pbuf.flags           = PBUF_FLAG_IS_CUSTOM;
+	np->pbuf_custom.pbuf.payload         = b->data;
+	np->pbuf_custom.pbuf.ref             = 1;
+	np->pbuf_custom.custom_free_function = _netbuf_free;
+	np->netbuf = b;
+}
+
+struct uk_netbuf *lwip_alloc_netbuf_without_data(struct uk_alloc *a)
+{
+	struct uk_netbuf *b = uk_netbuf_alloc(a, sizeof(struct _netbuf_pbuf),
+					      NULL);
+	// @gt Allocate a netbuf but not the data region for rx
+	//     So, init the netbuf right away, and we will give it
+	//     to the driver for rx buffer allocation.
+	if (b)
+		lwip_init_netbuf_pbuf(b);
+
+	return b;
+}
+
 struct uk_netbuf *lwip_alloc_netbuf(struct uk_alloc *a, size_t alloc_size,
 				    size_t alloc_align, uint16_t headroom)
 {
 	struct uk_netbuf *b;
-	struct _netbuf_pbuf *np;
 
 	b = uk_netbuf_alloc_buf(a, alloc_size, alloc_align,
 				headroom, sizeof(struct _netbuf_pbuf), NULL);
@@ -62,15 +87,7 @@ struct uk_netbuf *lwip_alloc_netbuf(struct uk_alloc *a, size_t alloc_size,
 		goto err_out;
 	}
 
-	/* Fill-out meta data */
-	np = (struct _netbuf_pbuf *) uk_netbuf_get_priv(b);
-	memset(np, 0, sizeof(struct _netbuf_pbuf));
-	np->pbuf_custom.pbuf.type_internal   = PBUF_ROM;
-	np->pbuf_custom.pbuf.flags           = PBUF_FLAG_IS_CUSTOM;
-	np->pbuf_custom.pbuf.payload         = b->data;
-	np->pbuf_custom.pbuf.ref             = 1;
-	np->pbuf_custom.custom_free_function = _netbuf_free;
-	np->netbuf = b;
+	lwip_init_netbuf_pbuf(b);
 
 	/*
 	 * Set length of netbuf to available space so that it

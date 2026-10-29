@@ -61,6 +61,9 @@ struct _netbuf_pbuf {
 struct uk_netbuf *lwip_alloc_netbuf(struct uk_alloc *a, size_t alloc_size,
 				    size_t alloc_align, uint16_t headroom);
 
+/* Allocate only netbuf and pbuf metadata; the driver supplies RX data. */
+struct uk_netbuf *lwip_alloc_netbuf_without_data(struct uk_alloc *a);
+
 /**
  * Returns the reference of the embedded pbuf of a netbuf
  */

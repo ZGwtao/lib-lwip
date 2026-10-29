@@ -130,6 +130,23 @@ static uint16_t netif_alloc_rxpkts(void *argp, struct uk_netbuf *nb[],
 	return i;
 }
 
+#if CONFIG_DRIVER_NET_SDDF
+static uint16_t netif_alloc_sddf_rxpkts(void *argp, struct uk_netbuf *nb[],
+					uint16_t count)
+{
+	struct lwip_netdev_data *lwip_data = argp;
+	uint16_t i;
+
+	UK_ASSERT(lwip_data);
+	for (i = 0; i < count; ++i) {
+		nb[i] = lwip_alloc_netbuf_without_data(lwip_data->pkt_a);
+		if (!nb[i])
+			break;
+	}
+	return i;
+}
+#endif
+
 static err_t uknetdev_output(struct netif *nf, struct pbuf *p)
 {
 	struct uk_netdev *dev;
@@ -520,6 +537,11 @@ err_t uknetdev_init(struct netif *nf)
 	 */
 	rxq_conf.a = a;
 	rxq_conf.alloc_rxpkts = netif_alloc_rxpkts;
+#if CONFIG_DRIVER_NET_SDDF
+	if (uk_netdev_drv_name_get(dev) &&
+	    !strcmp(uk_netdev_drv_name_get(dev), "uk_netdev_sddf"))
+		rxq_conf.alloc_rxpkts = netif_alloc_sddf_rxpkts;
+#endif
 	rxq_conf.alloc_rxpkts_argp = lwip_data;
 #ifdef CONFIG_LWIP_NOTHREADS
 	/*
