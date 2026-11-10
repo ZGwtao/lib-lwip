@@ -145,6 +145,16 @@ static uint16_t netif_alloc_sddf_rxpkts(void *argp, struct uk_netbuf *nb[],
 	}
 	return i;
 }
+
+static struct uk_netbuf *netif_alloc_txbuf(void *argp, void *data,
+					 size_t capacity, uint16_t headroom,
+					 uk_netbuf_dtor_t dtor)
+{
+	struct lwip_netdev_data *lwip_data = argp;
+
+	return uk_netbuf_alloc_indir(lwip_data->pkt_a, data, capacity,
+				     headroom, 0, dtor);
+}
 #endif
 
 static err_t uknetdev_output(struct netif *nf, struct pbuf *p)
@@ -162,7 +172,10 @@ static err_t uknetdev_output(struct netif *nf, struct pbuf *p)
 	lwip_data = (struct lwip_netdev_data *) dev->scratch_pad;
 	UK_ASSERT(lwip_data);
 
-	nb = uk_netbuf_alloc_buf(lwip_data->pkt_a,
+	nb = uk_netdev_tx_buf_alloc(dev, 0, UKNETDEV_BUFLEN,
+				     lwip_data->dev_info.nb_encap_tx);
+	if (!nb)
+		nb = uk_netbuf_alloc_buf(lwip_data->pkt_a,
 				 UKNETDEV_BUFLEN,
 				 lwip_data->dev_info.ioalign,
 				 lwip_data->dev_info.nb_encap_tx,
@@ -573,6 +586,13 @@ err_t uknetdev_init(struct netif *nf)
 	 * use driver default descriptors
 	 */
 	txq_conf.a = a;
+#if CONFIG_DRIVER_NET_SDDF
+	if (uk_netdev_drv_name_get(dev) &&
+	    !strcmp(uk_netdev_drv_name_get(dev), "uk_netdev_sddf")) {
+		txq_conf.alloc_txbuf = netif_alloc_txbuf;
+		txq_conf.alloc_txbuf_argp = lwip_data;
+	}
+#endif
 	ret = uk_netdev_txq_configure(dev, 0, 0, &txq_conf);
 	if (ret < 0) {
 		LWIP_DEBUGF(NETIF_DEBUG,
